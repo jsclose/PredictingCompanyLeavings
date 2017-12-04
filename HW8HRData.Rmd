@@ -1,0 +1,410 @@
+---
+title: "TO414 HW 8 - Based on A Final Assessment"
+author: "EDIT TO INCLUDE YOUR NAME HERE"
+date: "Dec 01, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+> Welcome to TO414 Advanced Analytics Homework 8. This is loosely based on the final assessment for one of the prior offerings of thc course. For this submission, you should edit this RMD file to build your submission. Once you are done, please submit the RMD file and the HTML output on Canvas. **Please make your output readable** - put sufficient amount of comment and text explanation so that you can receive partial credits even if you could not finish a task. Have fun!
+
+## Problem Statement
+
+You are a member of the consulting team that is working with a client to boost their HR system. A key pain point for the client is the fact that employees have been leaving the company. They would like to identify which employees are likely to leave so that they can have their HR managers work with those employees in an effort to retain them. To help you in that effort, they have given you all the information they have on their employees including which of them left the company. **You are asked to explore the data and build a predictive model that can accurately predict which employees are likely to quit the company.**
+
+## Data Import and Cleaning
+
+Your first task is to import the data into R and check whether any data cleaning is needed. The data is available in a file named *hrdata.csv*. You should carefully consider whether all variables are in the correct class, whether there are missing values that need your attention, are there any other issues in the data that you need to consider?
+```{r}
+suppressPackageStartupMessages(require(class))
+suppressPackageStartupMessages(require(gmodels))
+suppressPackageStartupMessages(require(stats))
+suppressPackageStartupMessages(require(magrittr))
+suppressPackageStartupMessages(require(caret))
+suppressPackageStartupMessages(library(kernlab))
+suppressPackageStartupMessages(library(neuralnet))
+suppressPackageStartupMessages(library(randomForest))
+suppressPackageStartupMessages(library(ada))
+library(dummies)
+library(class)
+library(gmodels)
+library(ggplot2)
+library(dplyr)
+library(C50)
+
+```
+
+
+
+```{r}
+
+#Insert your code for data import and cleaning here
+hr <- read.csv("hrdata.csv")
+
+#X looks like a unique ID, lets drop
+hr <- hr[-1]
+str(hr)
+summary(hr)
+hr$left <- as.factor(hr$left)
+levels(hr$left) <- c("NO", "YES")
+hr$Work_accident <- as.factor(hr$Work_accident)
+levels(hr$Work_accident) <- c("NO", "YES")
+hr$promotion_last_5years <- as.factor(hr$promotion_last_5years)
+levels(hr$promotion_last_5years)  <- c("NO", "YES")
+
+
+```
+
+```{}
+What data cleaning did you need to do? Explain in this text block.
+```
+
+## Data Exploration
+
+Before you get started on building your prediction model, you should explore the data to get a better understanding of the data. Such exploration may include calculating exploratory summary statistics, building interesting charts etc.
+
+```{r}
+#Insert your code for data exploration and visualization here
+
+round(prop.table(table(hr$left)) * 100, 1)
+
+
+leftByYear <- hr %>%
+    group_by(time_spend_company, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+
+
+
+plot<-ggplot(data=leftByYear, aes(x=time_spend_company, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+
+leftByProject<- hr %>%
+    group_by(number_project, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+
+plot<-ggplot(data=leftByProject, aes(x=number_project, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+
+
+leftByAccident<- hr %>%
+    group_by(Work_accident, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+
+
+plot<-ggplot(data=leftByAccident, aes(x=Work_accident, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+
+leftByPosition<- hr %>%
+    group_by(sales, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+
+
+plot<-ggplot(data=leftByPosition, aes(x=sales, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+
+
+
+leftByHours<- hr %>%
+    group_by(average_montly_hours, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+
+
+plot<-ggplot(data=leftByHours, aes(x=average_montly_hours, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+
+
+leftByPromotion<- hr %>%
+    group_by(promotion_last_5years, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+
+
+plot<-ggplot(data=leftByPromotion, aes(x=promotion_last_5years, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+
+
+
+leftBySalary<- hr %>%
+    group_by(salary, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+
+
+plot<-ggplot(data=leftBySalary, aes(x=salary, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+
+
+
+
+leftByEval<- hr %>%
+    group_by(last_evaluation, left) %>%
+    summarise(count = n()) %>%
+    mutate(freq = count / sum(count))
+
+plot<-ggplot(data=leftByEval, aes(x=last_evaluation, y=freq, fill = (left)))+
+  geom_bar(stat="identity" , position = "dodge")
+plot 
+```
+
+
+```{}
+What did you find in your data exploration? Anything interesting to see here? Explain in this text block.
+Number of project: It appears that there are two trends. When people have too few projects <2, they are more likely leave. Then, as they have more projects the amount of people tend to leave, increasing from more than 4 projects.
+
+Time spent at the company: The most amount of people tend to leave between 3-6 years, with the highest frequency of leavers around 5 years. After 7 years, not as many people leave the company.
+
+Accident at work: People whom have had a work accident are more likely to leave
+
+Postion: All of the different positions have similar leaving frequencys.
+
+Average Monthly Hours: There appears to be two trends: With too few hours ~ 125-170, people are more likely to leave. Then after about 200 to 300, there is an increasing leave rate. Around 280, people are gon.
+
+Promotions: Having a promotion means you are slightly more likely to stay.
+
+Salary: People with low-medium salary are slightly more likely to leave.
+
+Evaluation:
+
+
+```
+
+## Building a Logistic Regression Model
+
+Lets start with a Logistic Regression Model as the base model. You should carefully consider whether you need some interaction effects in your model.
+
+```{r}
+#Insert your code for building a logistic regression model here
+library(VGAM)
+library(lmtest)
+library(aod)
+library(caret)
+   hr_formula <- colnames(hr) %>% 
+    {paste(.[! . %in% "left"], collapse = " + ")} %>% 
+    paste("left ~ ", .) %>% 
+    as.formula()
+ 
+    train_data <- hr[0:12000, ]
+    test_data <- hr[12001:14999, ]
+    
+    log_model <- glm(left ~ ., data = train_data, family = "binomial")
+  # Create a step logistic to factor in all of the necessary variables
+     summary(log_model)
+
+ 
+    
+  
+    log_model_step <- glm(left~ 1, data = train_data, family = binomial)
+  log_model_step <- step(log_model_step, scope = (hr_formula), direction = "forward")
+  # Boosted Logistic Model
+  #log_model_boosted <- caret::train(left ~ ., data = train_data, 
+  #                                  method = "LogitBoost", 
+  #                                  trcontrol = fitControl,
+  #                                  metric = "Kappa")
+  
+  
+  accuracy <- function(predicted, trueval, model, hideoutput = F) {
+      stopifnot(length(predicted) == length(trueval))
+      result <- sum(predicted == trueval) / length(predicted)
+      if (!hideoutput) {cat("Model:", model, "had", result, "accuracy\n")}
+      return(result)
+    }
+
+# ==========================================================
+# Get the various predictions for the test data
+# ==========================================================
+log_prediction <- predict(log_model, test_data, type = "response") %>% {ifelse(. > 0.5, "YES", "NO")} %>% as.factor()
+  table(log_prediction)
+  a1 = accuracy(log_prediction, test_data$left, "Log Prediction Plain", TRUE)
+  
+  
+```
+
+```{}
+How was your logisic model? Anything interesting there? Write your conclusions and insights from the Logistic Regression Model here.
+```
+
+## Getting Data Ready for Machine Learning Models
+
+Before we start running Machine Learning Models, we need to make sure that the data is randomized, is normalized and is divided into train and test samples.
+
+```{r}
+#Insert your code here for getting the data ready for Machine Learning Models
+
+#set.seed(12345)
+#hr_dummy <-model.matrix(~ ., data = hr)
+#hr_dummy <- as.data.frame(scale(hr_dummy))
+# Rescale the data
+#hr_dummy <- hr_dummy[-1]
+#hr_ran <- hr_dummy[order(runif(1232)), ]
+
+#train_data_indicies <- sample(1:nrow(hr_dummy), 
+    #                          replace = F, 
+   #                           size = floor(nrow(hr_dummy) * 0.8)) 
+
+#train_data <- hr_ran[0:12000, ]
+#test_data <- hr_ran[12001:14999, ]
+```
+
+## Support Vector Machines
+
+Build an SVM model to predict which employee will quit the company. You should build an SVM model with **vanilladot** and then one with **rbfdot**. Use the model to predict the test data. How good are your models? Calculate accuracy percentage and kappa statistics for your models.
+
+```{r}
+#Insert code for SVM Models here
+library(kernlab)
+  svm_model_one <- ksvm(hr_formula, data = train_data, kernel = "vanilladot")
+  svm_model_two <- ksvm(hr_formula, data = train_data, kernel = "rbfdot")
+  
+    svm_prediction_01 <- predict(svm_model_one, test_data)
+    svm_prediction_02 <- predict(svm_model_two, test_data)
+    a2 = accuracy(svm_prediction_01, test_data$left, "SVM with Vanilla Kernal", TRUE)
+    a3 = accuracy(svm_prediction_02, test_data$left, "SVM Radial Basis Kernal", TRUE)
+```
+
+
+```{}
+Did your SVM Models work well? Anything interesting? Write your insights and conclusions here.
+```
+
+## Decision Trees
+
+Build an Decision Tree model to predict which employee will quit the company. Use the model to predict the test data. How good is your model? Calculate accuracy percentage and kappa statistics for your models.
+
+```{r}
+#Insert your code to build a decision tree model here
+
+tree_model <- C5.0(train_data[-7], train_data$left)
+# display simple facts about the tree
+tree_model
+
+# display detailed information about the tree
+summary(tree_model)
+
+## Step 4: Evaluating model performance ----
+# create a factor vector of predictions on test data
+credit_pred <- predict(tree_model, test_data)
+
+# cross tabulation of predicted versus actual classes
+library(gmodels)
+CrossTable(test_data$left, credit_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual left', 'predicted left'))
+
+a4 = accuracy(credit_pred, test_data$left, "Decision Tree", TRUE)
+
+
+```
+
+```{}
+Did your Decision Tree Model work well? Anything interesting? Write your insights and conclusions here.
+```
+
+### Improving Decision Trees: Boosting and Cost Matrix
+
+Lets attempt to improve your decision tree model by adding Adaptive Boosting for 10 trials. Does that make a difference to your prediction accuracy?  
+
+```{r}
+#Insert your code to build a decision tree model with 10 trials adaptive boosting here
+left_boost100 <- C5.0(train_data[-7], train_data$left, trials = 10)
+left_boost_pred100 <- predict(left_boost100, test_data)
+CrossTable(test_data$left, left_boost_pred100,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual left', 'predicted left'))
+
+a5 = accuracy(credit_pred, test_data$left, "Decision Tree with 10 trails boosting", TRUE)
+
+```
+
+```{}
+Did your Decision Tree Model with adaptive boosting work well? Anything interesting? Write your insights and conclusions here.
+```
+
+Lets attempt to improve your model with a cost matrix. How should you structure your cost matrix? 
+
+```{r}
+#Insert your code to build a decision tree model with cost matrix here
+```
+
+```{}
+Did your Decision Tree Model with cost matrix work well? Anything interesting? Write your insights and conclusions here.
+```
+
+```{r}
+rf <- randomForest(left ~ ., data = train_data)
+rf_pred <- predict(rf, test_data)
+a6 = accuracy(rf_pred, test_data$left, "Random Forest", TRUE)
+
+```
+
+### Cross Validation
+
+You are asked to run a 10-fold cross validation in an attempt to improve the model.
+
+```{r}
+#Insert your code
+```
+
+```{}
+Did your Decision Tree Model get better with 10 fold CV?
+```
+
+## If this were an exam, it would stop right here. Since this an HW, I am asking you to do something additional.
+
+Build a stacked model to combine all the individual models you have built so far. Does the stacked model perform better?
+
+```{r}
+#Insert your code for stacked model
+#Calculate whether your stacked model works better than the individual models above.
+
+
+```
+
+```{}
+Explain your stacked model work and any conclusions/insights here.
+```
+
+# Conclusion
+```{r}
+acc_predictions = c(a1,a2,a3,a4,a5, a6)
+#acc_predictions = c(a1,a2,a3,a4,a5,a6,a7,a8,a9,a10)
+#names = c("Log Prediction Plain","Log Boosted","Log Step","SVM with Vanilla Kernal","SVM Radial Basis Kernal","Neural Net One Hidden Node","Neural Net Two Hidden Nodes","CTree Regression","Random Forest Classification","Ada Boost Classification")
+
+names = c("Log Prediction Plain", "SVM with Vanilla Kernal","SVM Radial Basis Kernal","Decision C5.0 Tree Regression","Decision Tree C5.0 Regression trails 10", "Random Forest")
+acc_mat <- data.frame(ModelName = names, accuracy = acc_predictions) %>% print
+```
+
+```{r}
+dotchart(acc_predictions, labels = names, main = "Accuracy of the models", xlab = "Accuracy")
+
+```
+
+
+```{}
+What is your conclusion from all this analysis? What insights could you gather? What advice will you give to the company?
+```
+
+
+
+That's it. Hope you had fun doing this.
