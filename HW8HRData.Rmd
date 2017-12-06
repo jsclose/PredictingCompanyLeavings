@@ -1,6 +1,6 @@
 ---
 title: "TO414 HW 8 - Based on A Final Assessment"
-author: "EDIT TO INCLUDE YOUR NAME HERE"
+author: "Jake Close & Peter Kaplan"
 date: "Dec 01, 2017"
 output: html_document
 ---
@@ -59,7 +59,9 @@ levels(hr$promotion_last_5years)  <- c("NO", "YES")
 ```
 
 ```{}
-What data cleaning did you need to do? Explain in this text block.
+TODO: What data cleaning did you need to do? Explain in this text block.
+
+We had to do very light data cleaning for this data set. We removed the unique identifier column. In addition we also turned leaving the company, having a work accident and having a promotion into a factor with levels of "Yes" and "No".
 ```
 
 ## Data Exploration
@@ -237,12 +239,15 @@ library(caret)
 log_prediction <- predict(log_model, test_data, type = "response") %>% {ifelse(. > 0.5, "YES", "NO")} %>% as.factor()
   table(log_prediction)
   a1 = accuracy(log_prediction, test_data$left, "Log Prediction Plain", TRUE)
-  
-  
 ```
 
 ```{}
 How was your logisic model? Anything interesting there? Write your conclusions and insights from the Logistic Regression Model here.
+
+Our logistic model was fairly accurate. This stemmed from having multiple strong 3 star variables. One of the strongest indicator variables was satisfaction level. This intuitively makes sense because if someone is unhappy with their job they would want to leave and vice-versa.
+
+A piece of data that was interesting was that job type has relatively low impact on if the person stays or leaves. The 
+most impactful job type was being in R & D and that was one star probability and people were more likely to stay. This might be because the people in that division were friendlier or the division cared more than others about work/life balance or culture than other groups in the company.  
 ```
 
 ## Getting Data Ready for Machine Learning Models
@@ -257,7 +262,7 @@ hr_dummy <-model.matrix(~ . -1, data = hr)
 hr_dummy <- as.data.frame(scale(hr_dummy))
 # Rescale the data
 #hr_dummy <- hr_dummy[-1]
-#hr_ran <- hr_dummy[order(runif(1232)), ]
+hr_ran <- hr_dummy[order(runif(1232)), ]
 
 #train_data_indicies <- sample(1:nrow(hr_dummy), 
 #                             replace = F, 
@@ -298,6 +303,7 @@ library(kernlab)
 
 ```{}
 Did your SVM Models work well? Anything interesting? Write your insights and conclusions here.
+One of the SVM models, the rbfdot model worked very well and had an accuracy of 92%. The vanilladot model on the otherhand worked very poorly and only produced a 47% accuracy. This is interesting and shows that we should be using the rbfdot model for a better predicter if we want to use SVM. 
 ```
 
 ## Decision Trees
@@ -331,6 +337,7 @@ a4 = accuracy(credit_pred, test_data$left, "Decision Tree", TRUE)
 
 ```{}
 Did your Decision Tree Model work well? Anything interesting? Write your insights and conclusions here.
+The decision tree worked great. It provided a 95.5 % accuracy. What is interesting is that it predicted that a lot of people wouldnt leave but then they ended up leaving and barely any predicted leave and then didnt leave. Predicting someone wont leave and they actually do is very bad because the company does not get an opportunity to retain them. Lets see if we can even that out by boosting or adding a cost matrix. 
 ```
 
 ### Improving Decision Trees: Boosting and Cost Matrix
@@ -351,23 +358,39 @@ a5 = accuracy(credit_pred, test_data$left, "Decision Tree with 10 trails boostin
 
 ```{}
 Did your Decision Tree Model with adaptive boosting work well? Anything interesting? Write your insights and conclusions here.
+The adaptive boosting worked better than the plain Decision Tree Model. It improved falsely predicting someone will not leave and then still leave. But it still has a high number of mispredictions and the worse type of mispredictions. 
 ```
 
 Lets attempt to improve your model with a cost matrix. How should you structure your cost matrix? 
 
+Its worse if we have a false negative-- We predict that they stay but they actually leave. Thus, we will not get the opportunity to have a chat with their manger to get them to stay. Lets make falsely predicting this very costly. 
+
 ```{r}
-#Insert your code to build a decision tree model with cost matrix here
+
+cost_matrix <- matrix(c(0, 1, 6, 0), nrow = 2)
+
+cost_model <- C5.0(train_data[-7], train_data$left, costs = cost_matrix)
+
+cost_pred <- predict(cost_model, test_data)
+
+CrossTable(test_data$left, cost_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual left', 'predicted left'))
+
+a6 = accuracy(cost_pred, test_data$left, "Decision Tree with cost model", TRUE)
+
+
 ```
 
 ```{}
 Did your Decision Tree Model with cost matrix work well? Anything interesting? Write your insights and conclusions here.
+The cost matrix improved the performance of the model overall. It also heavily improved the rate at which we predicted someone would stay and they left anyway. After running the tree model for a multitude of costs, we came to find that putting the cost of predicting someone would stay incorrectly at 5 times the cost we could minimize mispredictions and also have a less chance of mispredicting that someone would stay and they actually left. By mispredicting in the other direction and having someone predict they would leave and then actually stay, the only thing wasted would be managerial time and not actually manpower. 
 ```
 
 ```{r}
 rf <- randomForest(left ~ ., data = train_data)
 rf_pred <- predict(rf, test_data)
-a6 = accuracy(rf_pred, test_data$left, "Random Forest", TRUE)
-
+a7 = accuracy(rf_pred, test_data$left, "Random Forest", TRUE)
 ```
 
 ### Cross Validation
@@ -375,7 +398,26 @@ a6 = accuracy(rf_pred, test_data$left, "Random Forest", TRUE)
 You are asked to run a 10-fold cross validation in an attempt to improve the model.
 
 ```{r}
-#Insert your code
+library(caret)
+library(C50)
+library(irr)
+set.seed(123)
+
+folds <- createFolds(hr$left, k = 10)
+
+cv_results <- lapply(folds, function(x) {
+  hr_train <- hr[x, ]
+  hr_test <- hr[-x, ]
+  hr_model <- C5.0(default ~ ., data = hr_train)
+  hr_pred <- predict(hr_model, hr_test)
+  hr_actual <- hr_test$left
+  kappa <- kappa2(data.frame(hr_actual, hr_pred))$value
+  return(kappa)
+})
+
+str(cv_results)
+mean(unlist(cv_results))
+
 ```
 
 ```{}
@@ -399,11 +441,11 @@ Explain your stacked model work and any conclusions/insights here.
 
 # Conclusion
 ```{r}
-acc_predictions = c(a1,a2,a3,a4,a5, a6)
+acc_predictions = c(a1,a2,a3,a4,a5, a6, a7)
 #acc_predictions = c(a1,a2,a3,a4,a5,a6,a7,a8,a9,a10)
 #names = c("Log Prediction Plain","Log Boosted","Log Step","SVM with Vanilla Kernal","SVM Radial Basis Kernal","Neural Net One Hidden Node","Neural Net Two Hidden Nodes","CTree Regression","Random Forest Classification","Ada Boost Classification")
 
-names = c("Log Prediction Plain", "SVM with Vanilla Kernal","SVM Radial Basis Kernal","Decision C5.0 Tree Regression","Decision Tree C5.0 Regression trails 10", "Random Forest")
+names = c("Log Prediction Plain", "SVM with Vanilla Kernal","SVM Radial Basis Kernal","Decision C5.0 Tree Regression","Decision Tree C5.0 Regression trails 10", "Decision Tree C5.0 with Cost Model", "Random Forest")
 acc_mat <- data.frame(ModelName = names, accuracy = acc_predictions) %>% print
 ```
 
