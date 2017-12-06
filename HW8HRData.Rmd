@@ -252,19 +252,25 @@ Before we start running Machine Learning Models, we need to make sure that the d
 ```{r}
 #Insert your code here for getting the data ready for Machine Learning Models
 
-#set.seed(12345)
-#hr_dummy <-model.matrix(~ ., data = hr)
-#hr_dummy <- as.data.frame(scale(hr_dummy))
+set.seed(12345)
+hr_dummy <-model.matrix(~ . -1, data = hr)
+hr_dummy <- as.data.frame(scale(hr_dummy))
 # Rescale the data
 #hr_dummy <- hr_dummy[-1]
 #hr_ran <- hr_dummy[order(runif(1232)), ]
 
 #train_data_indicies <- sample(1:nrow(hr_dummy), 
-    #                          replace = F, 
-   #                           size = floor(nrow(hr_dummy) * 0.8)) 
+#                             replace = F, 
+ #                             size = floor(nrow(hr_dummy) * 0.8)) 
+colnames(hr_dummy)[which(names(hr_dummy) == "leftYES")] <- "left"
+#index <- createDataPartition()
+train_data <- hr_dummy[1:12000, ]
+test_data <- hr_dummy[12001:14999, ]
 
-#train_data <- hr_ran[0:12000, ]
-#test_data <- hr_ran[12001:14999, ]
+hr_formula <- colnames(hr_dummy) %>% 
+    {paste(.[! . %in% "left"], collapse = " + ")} %>% 
+    paste("left ~ ", .) %>% 
+    as.formula()
 ```
 
 ## Support Vector Machines
@@ -272,10 +278,16 @@ Before we start running Machine Learning Models, we need to make sure that the d
 Build an SVM model to predict which employee will quit the company. You should build an SVM model with **vanilladot** and then one with **rbfdot**. Use the model to predict the test data. How good are your models? Calculate accuracy percentage and kappa statistics for your models.
 
 ```{r}
+
+train_data$left <- ifelse(train_data$left  < 1 , "0", "1" )
+train_data$left  <- as.factor(train_data$left )
+
+test_data$left <- ifelse(test_data$left  < 1 , "0", "1")
+test_data$left  <- as.factor(test_data$left )
 #Insert code for SVM Models here
 library(kernlab)
-  svm_model_one <- ksvm(hr_formula, data = train_data, kernel = "vanilladot")
-  svm_model_two <- ksvm(hr_formula, data = train_data, kernel = "rbfdot")
+    svm_model_one <- ksvm(hr_formula, data = train_data, kernel = "vanilladot")
+    svm_model_two <- ksvm(hr_formula, data = train_data, kernel = "rbfdot")
   
     svm_prediction_01 <- predict(svm_model_one, test_data)
     svm_prediction_02 <- predict(svm_model_two, test_data)
@@ -295,7 +307,7 @@ Build an Decision Tree model to predict which employee will quit the company. Us
 ```{r}
 #Insert your code to build a decision tree model here
 
-tree_model <- C5.0(train_data[-7], train_data$left)
+tree_model <- C5.0(train_data[-8], train_data$left)
 # display simple facts about the tree
 tree_model
 
@@ -327,7 +339,7 @@ Lets attempt to improve your decision tree model by adding Adaptive Boosting for
 
 ```{r}
 #Insert your code to build a decision tree model with 10 trials adaptive boosting here
-left_boost100 <- C5.0(train_data[-7], train_data$left, trials = 10)
+left_boost100 <- C5.0(train_data[-8], train_data$left, trials = 10)
 left_boost_pred100 <- predict(left_boost100, test_data)
 CrossTable(test_data$left, left_boost_pred100,
            prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
