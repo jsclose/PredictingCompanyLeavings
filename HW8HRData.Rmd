@@ -298,12 +298,17 @@ library(kernlab)
     svm_prediction_02 <- predict(svm_model_two, test_data)
     a2 = accuracy(svm_prediction_01, test_data$left, "SVM with Vanilla Kernal", TRUE)
     a3 = accuracy(svm_prediction_02, test_data$left, "SVM Radial Basis Kernal", TRUE)
+    
+ library(vcd)
+  Kappa(table(svm_prediction_01, test_data$left))
+  Kappa(table(svm_prediction_02, test_data$left))
+
 ```
 
 
 ```{}
 Did your SVM Models work well? Anything interesting? Write your insights and conclusions here.
-One of the SVM models, the rbfdot model worked very well and had an accuracy of 92%. The vanilladot model on the otherhand worked very poorly and only produced a 47% accuracy. This is interesting and shows that we should be using the rbfdot model for a better predicter if we want to use SVM. 
+One of the SVM models, the rbfdot model worked very well and had an accuracy of 92%. The vanilladot model on the otherhand worked very poorly and only produced a 47% accuracy. In addition the kappa for the radial basis kernal is .851 which a very good kappa score. This is interesting and shows that we should be using the rbfdot model for a better predicter if we want to use SVM. 
 ```
 
 ## Decision Trees
@@ -332,12 +337,13 @@ CrossTable(test_data$left, credit_pred,
 
 a4 = accuracy(credit_pred, test_data$left, "Decision Tree", TRUE)
 
+Kappa(table(credit_pred, test_data$left))
 
 ```
 
 ```{}
 Did your Decision Tree Model work well? Anything interesting? Write your insights and conclusions here.
-The decision tree worked great. It provided a 95.5 % accuracy. What is interesting is that it predicted that a lot of people wouldnt leave but then they ended up leaving and barely any predicted leave and then didnt leave. Predicting someone wont leave and they actually do is very bad because the company does not get an opportunity to retain them. Lets see if we can even that out by boosting or adding a cost matrix. 
+The decision tree worked great. It provided a 95.5 % accuracy. The unweighted kappa score is .91 which means that this model is performing very well. What is interesting is that it predicted that a lot of people wouldnt leave but then they ended up leaving and barely any predicted leave and then didnt leave. Predicting someone wont leave and they actually do is very bad because the company does not get an opportunity to retain them. Lets see if we can even that out by boosting or adding a cost matrix. 
 ```
 
 ### Improving Decision Trees: Boosting and Cost Matrix
@@ -353,6 +359,8 @@ CrossTable(test_data$left, left_boost_pred100,
            dnn = c('actual left', 'predicted left'))
 
 a5 = accuracy(credit_pred, test_data$left, "Decision Tree with 10 trails boosting", TRUE)
+
+Kappa(table(credit_pred, test_data$left))
 
 ```
 
@@ -379,6 +387,7 @@ CrossTable(test_data$left, cost_pred,
 
 a6 = accuracy(cost_pred, test_data$left, "Decision Tree with cost model", TRUE)
 
+Kappa(table(cost_pred, test_data$left))
 
 ```
 
@@ -391,6 +400,9 @@ The cost matrix improved the performance of the model overall. It also heavily i
 rf <- randomForest(left ~ ., data = train_data)
 rf_pred <- predict(rf, test_data)
 a7 = accuracy(rf_pred, test_data$left, "Random Forest", TRUE)
+
+Kappa(table(rf_pred, test_data$left))
+
 ```
 
 ### Cross Validation
@@ -408,7 +420,7 @@ folds <- createFolds(hr$left, k = 10)
 cv_results <- lapply(folds, function(x) {
   hr_train <- hr[x, ]
   hr_test <- hr[-x, ]
-  hr_model <- C5.0(default ~ ., data = hr_train)
+  hr_model <- C5.0(left ~ ., data = hr_train)
   hr_pred <- predict(hr_model, hr_test)
   hr_actual <- hr_test$left
   kappa <- kappa2(data.frame(hr_actual, hr_pred))$value
@@ -422,6 +434,8 @@ mean(unlist(cv_results))
 
 ```{}
 Did your Decision Tree Model get better with 10 fold CV?
+
+No it did not, it provided a kappa score of .9068 while the kappa for the decision tree was .91 which is a higher kappa score. They are both very high kappa values but not doing 10 fold CV is slightly more effective. 
 ```
 
 ## If this were an exam, it would stop right here. Since this an HW, I am asking you to do something additional.
