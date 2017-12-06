@@ -480,8 +480,6 @@ cost_pred_train %<>% ConvertToYesNo()
 left_boost_pred100_train %<>% ConvertToYesNo()
 rf_pred_train %<>% ConvertToYesNo()
 
-tree_pred_train
-
 model_combined_results <- data.frame(svm_prediction_01_train, svm_prediction_02_train, left_boost_pred100_train, tree_pred_train, rf_pred_train) %>% as.tbl()
 
 names(model_combined_results) <- names(stacked_data)
