@@ -244,7 +244,7 @@ log_prediction <- predict(log_model, test_data, type = "response") %>% {ifelse(.
 ```{}
 How was your logisic model? Anything interesting there? Write your conclusions and insights from the Logistic Regression Model here.
 
-Our logistic model was fairly accurate. This stemmed from having multiple strong 3 star variables. One of the strongest indicator variables was satisfaction level. This intuitively makes sense because if someone is unhappy with their job they would want to leave and vice-versa.
+Our logistic model was not very accurate. This stemmed from having multiple strong 3 star variables. One of the strongest indicator variables was satisfaction level. This intuitively makes sense because if someone is unhappy with their job they would want to leave and vice-versa.
 
 A piece of data that was interesting was that job type has relatively low impact on if the person stays or leaves. The 
 most impactful job type was being in R & D and that was one star probability and people were more likely to stay. This might be because the people in that division were friendlier or the division cared more than others about work/life balance or culture than other groups in the company.  
@@ -258,7 +258,8 @@ Before we start running Machine Learning Models, we need to make sure that the d
 #Insert your code here for getting the data ready for Machine Learning Models
 
 set.seed(12345)
-hr_dummy <-model.matrix(~ . -1, data = hr)
+hr_rand <- hr[order(runif(14999)),]
+hr_dummy <-model.matrix(~ . -1, data = hr_rand)
 hr_dummy <- as.data.frame(scale(hr_dummy))
 # Rescale the data
 #hr_dummy <- hr_dummy[-1]
@@ -327,17 +328,17 @@ summary(tree_model)
 
 ## Step 4: Evaluating model performance ----
 # create a factor vector of predictions on test data
-credit_pred <- predict(tree_model, test_data)
+tree_pred <- predict(tree_model, test_data)
 
 # cross tabulation of predicted versus actual classes
 library(gmodels)
-CrossTable(test_data$left, credit_pred,
+CrossTable(test_data$left, tree_pred,
            prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
            dnn = c('actual left', 'predicted left'))
 
-a4 = accuracy(credit_pred, test_data$left, "Decision Tree", TRUE)
+a4 = accuracy(tree_pred, test_data$left, "Decision Tree", TRUE)
 
-Kappa(table(credit_pred, test_data$left))
+Kappa(table(tree_pred, test_data$left))
 
 ```
 
@@ -358,9 +359,9 @@ CrossTable(test_data$left, left_boost_pred100,
            prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
            dnn = c('actual left', 'predicted left'))
 
-a5 = accuracy(credit_pred, test_data$left, "Decision Tree with 10 trails boosting", TRUE)
+a5 = accuracy(left_boost_pred100, test_data$left, "Decision Tree with 10 trails boosting", TRUE)
 
-Kappa(table(credit_pred, test_data$left))
+Kappa(table(left_boost_pred100, test_data$left))
 
 ```
 
@@ -446,20 +447,71 @@ Build a stacked model to combine all the individual models you have built so far
 #Insert your code for stacked model
 #Calculate whether your stacked model works better than the individual models above.
 
+ConvertToYesNo <- function(myprediction) {
+  result <- myprediction %>% as.factor()
+  levels(result) <- c("no", "yes")
+  result
+}
 
+# Convert each set of predictions to factors
+log_prediction %<>% ConvertToYesNo()
+svm_prediction_01 %<>% ConvertToYesNo()
+svm_prediction_02 %<>% ConvertToYesNo()
+tree_pred %<>% ConvertToYesNo()
+cost_pred %<>% ConvertToYesNo()
+left_boost_pred100 %<>% ConvertToYesNo()
+rf_pred %<>% ConvertToYesNo()
+
+
+
+stacked_data = data.frame(svm_prediction_01, svm_prediction_02, left_boost_pred100, tree_pred, rf_pred) %>% as.tbl()
+
+tree_pred_train <- predict(tree_model, train_data)
+svm_prediction_01_train <- predict(svm_model_one, train_data)
+svm_prediction_02_train <- predict(svm_model_two, train_data)
+tree_pred_train <- predict(tree_model, train_data)
+left_boost_pred100_train <- predict(left_boost100, train_data)
+cost_pred_train <- predict(cost_model, train_data)
+rf_pred_train <- predict(rf, train_data)
+svm_prediction_01_train %<>% ConvertToYesNo()
+svm_prediction_02_train %<>% ConvertToYesNo()
+tree_pred_train %<>% ConvertToYesNo()
+cost_pred_train %<>% ConvertToYesNo()
+left_boost_pred100_train %<>% ConvertToYesNo()
+rf_pred_train %<>% ConvertToYesNo()
+
+tree_pred_train
+
+model_combined_results <- data.frame(svm_prediction_01_train, svm_prediction_02_train, left_boost_pred100_train, tree_pred_train, rf_pred_train) %>% as.tbl()
+
+names(model_combined_results) <- names(stacked_data)
+
+model_combined_results
+
+library(party)
+
+stacked_model <- ctree(train_data$left ~ . + 1, data = model_combined_results, controls = ctree_control(mincriterion = .95)) %T>% plot
+
+
+stacked_model_prediction = predict(stacked_model, stacked_data, type = "response")
+accuracy(stacked_model_prediction, test_data$left, "Stacked Model Accuracy")
+a8 = accuracy(stacked_model_prediction, test_data$left, "Stacked Model Accuracy")
 ```
 
 ```{}
 Explain your stacked model work and any conclusions/insights here.
+
+Our stacked model performed very well. It had a improved performance over a majority of the models. It performed worse than the improved random forest model with cost matrix.
+
 ```
 
 # Conclusion
 ```{r}
-acc_predictions = c(a1,a2,a3,a4,a5, a6, a7)
+acc_predictions = c(a1,a2,a3,a4,a5, a6, a7, a8)
 #acc_predictions = c(a1,a2,a3,a4,a5,a6,a7,a8,a9,a10)
 #names = c("Log Prediction Plain","Log Boosted","Log Step","SVM with Vanilla Kernal","SVM Radial Basis Kernal","Neural Net One Hidden Node","Neural Net Two Hidden Nodes","CTree Regression","Random Forest Classification","Ada Boost Classification")
 
-names = c("Log Prediction Plain", "SVM with Vanilla Kernal","SVM Radial Basis Kernal","Decision C5.0 Tree Regression","Decision Tree C5.0 Regression trails 10", "Decision Tree C5.0 with Cost Model", "Random Forest")
+names = c("Log Prediction Plain", "SVM with Vanilla Kernal","SVM Radial Basis Kernal","Decision C5.0 Tree Regression","Decision Tree C5.0 Regression trails 10", "Decision Tree C5.0 with Cost Model", "Random Forest", "Stacked Model")
 acc_mat <- data.frame(ModelName = names, accuracy = acc_predictions) %>% print
 ```
 
@@ -471,8 +523,8 @@ dotchart(acc_predictions, labels = names, main = "Accuracy of the models", xlab 
 
 ```{}
 What is your conclusion from all this analysis? What insights could you gather? What advice will you give to the company?
+
+Our conclusion is that we were able to accurately predict if a person would leave the company or not. We would feel confident giving this model to them to determine workers that are at risk of leaving. 
+
+From our analysis the factors that we found to be most influential in causing the workers to leaving the company include monthly hours worked, satisfaction level, number of projects (3 is the most optimal) and time spent at company. Other advice would be to perform these surveys regularly in order to determine at risk employees, or speaking with managers to have a better understanding of what their worker hours are in case employees dont answer honestly. 
 ```
-
-
-
-That's it. Hope you had fun doing this.
